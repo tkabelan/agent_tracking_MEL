@@ -1,0 +1,117 @@
+proc string getCurrentCamera()
+{
+  string $currentCamera;
+
+  string $currentPanel = `getPanel -wf`;
+
+  if ( "modelPanel" == `getPanel -to $currentPanel ` )
+  {
+    
+    $currentCamera = `modelEditor -q -camera $currentPanel `;
+  }
+
+  return $currentCamera;
+}
+
+
+string $getCamera = getCurrentCamera();
+
+
+proc trackAgent()
+{
+
+string $exp = "";
+
+//$exp += "\nstring $getCamera;";
+$exp += "\nvector $agentPos[];";
+$exp += "\nvector $oldPos[];";
+$exp += "\nint $localID;";
+$exp += "\nvector $pos;";
+
+
+//$exp += "int $localID;";
+$exp += "\n\nstring $names[] = msGetAgentSelection();";
+$exp += "\nfor($name in $names)";
+$exp +="\n{";
+	$exp += "\n\tstring $tokens[];";
+	$exp += "\n\ttokenize $name \"_\" $tokens;";
+	$exp += "\n\tstring $AGL = $tokens[0];";
+	$exp += "\n\tint $pids[] = motionSim(\"getAllMatchingIds\",$AGL +\"_*\");";
+	$exp += "\n\tfor($pid in $pids)";
+	$exp += "\n\t\t{";
+		$exp += "\n\t\t$localID = ";
+		$exp += "motionSim";
+		$exp += "(\"getDynamicData\", $pid, \"localId\");";
+		$exp += "\n\t\t$agentPos[$pid] = ";
+		$exp += "motionSim";
+		$exp += "(\"getDynamicData\", $pid,\"velPosition\");";
+		//$exp += "\n\t\t}"; // end of for($pid in $pids)";
+	
+		
+		$exp += "\n\t\tif ($localID  == int($tokens[1]))";
+		$exp += "\n\t\t\t{";
+			$exp += "\n\t\t\t$agentPos[(int)$localID] = ";
+			$exp += "motionSim";
+			$exp += "(\"getDynamicData\", $pid,\"velPosition\");";
+			$exp += "\n\t\t\t$pos = $agentPos[(int)$localID];";
+		$exp +="\n\t\t\t}";////// if ($localID)4 loop
+		
+        	$exp += "\n\t\t}"; ////// end of for($pid in $pids)";
+$exp +="\n}";
+	
+$exp +="\n\nfloat $cam1_x = `getAttr ($getCamera +\".tx\")`;";
+$exp +="\nfloat $cam1_y = `getAttr ($getCamera +\".ty\")`;";
+$exp +="\nfloat $cam1_z = `getAttr ($getCamera +\".tz\")`;";
+
+
+$exp +="\n\vector $camPos = <<$cam1_x,  $cam1_y, $cam1_z>>;";
+
+$exp +="\n\vector $initialCamPos;";
+$exp +="\n\$initialCamPos = $camPos;";
+
+
+$exp +="\nif (frame > `playbackOptions -query -min`)";
+$exp +="\n\$camPos = $camPos + ($pos- $oldPos[0]);";
+
+$exp +="\n\float $fX1 = $camPos.x;";
+$exp +="\n\float $fY1 = $camPos.y;";
+$exp +="\n\float $fZ1 = $camPos.z;";
+
+$exp +="\n\setAttr (($getCamera) +\".tx\") $fX1;";
+$exp +="\n\setAttr (($getCamera) +\".ty\") $fY1;";
+$exp +="\n\setAttr (($getCamera) +\".tz\") $fZ1;";
+
+$exp +="\n\$oldPos[0] = $pos;";
+
+
+expression -o msSelection1 -s $exp -ae 1 -n fa;
+
+} // end of track agent
+
+
+
+proc forceTime()
+{
+$minTime = `playbackOptions -query -min`;
+
+$currentTime = `currentTime -query`;
+
+if (`currentTime -query` == $minTime)
+	print "Agents in first frame ";
+else 
+	{
+	currentTime -edit $minTime;
+	}
+}
+
+if(!`objExists fa`)
+	{
+		forceTime();
+		trackAgent();
+		headsUpDisplay -section 2 -block 0 -blockSize "medium" -label "msAgentTrack Active" -labelFontSize "large" HUDmsCameraTrack;
+	}
+	else
+	{
+		delete fa;
+		headsUpDisplay -rem HUDmsCameraTrack;
+	}
